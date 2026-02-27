@@ -1,0 +1,47 @@
+---
+# Connection
+- name: Authenticate to Zabbix API
+  uri:
+    url: "{{ zabbix_url }}"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "user.login"
+      params:
+        username: "{{ zabbix_user }}"
+        password: "{{ zabbix_password }}"
+      id: 1
+    headers:
+      Content-Type: "application/json"
+  register: login_response
+
+- set_fact:
+    zabbix_auth: "{{ login_response.json.result }}"
+
+# AJOUT HOST
+
+- name: Create host in Zabbix
+  uri:
+    url: "{{ zabbix_url }}"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.create"
+      params:
+        host: "test-host"
+        interfaces:
+          - type: 1
+            main: 1
+            useip: 1
+            ip: "192.168.1.100"
+            dns: ""
+            port: "10050"
+        groups:
+          - groupid: "2"
+      auth: "{{ zabbix_auth }}"
+      id: 1
+    headers:
+      Content-Type: "application/json"
+  register: zabbix_create_host
