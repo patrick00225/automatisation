@@ -1,5 +1,5 @@
 ---
 
 zabbix_url: "http://192.168.1.79:8081/api_jsonrpc.php"
-zabbix_user: "admin"
-zabbix_password: "zabbix"
+zabbix_user: "****"
+zabbix_password: "****"
