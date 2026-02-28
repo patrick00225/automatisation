@@ -1,6 +1,18 @@
 ---
-
+---
 - hosts: localhost
   gather_facts: false
-  roles:
-    - zabbix_api
+  vars:
+    csv_file_path: "/runner/project/inventories/production/files/hosts.csv"  # chemin vers ton CSV
+  tasks:
+    - name: Read hosts from CSV
+      read_csv:
+        path: "{{ csv_file_path }}"
+      register: csv_hosts
+
+    - name: Process each host from CSV
+      include_role:
+        name: zabbix_api
+      loop: "{{ csv_hosts.list }}"
+      loop_control:
+        loop_var: csv_host
