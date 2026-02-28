@@ -50,6 +50,7 @@
     zabbix_groupid: "{{ zabbix_group.json.result[0].groupid }}"
 
 # 3️⃣ Vérifier si le host existe déjà
+# 1️⃣ Vérifier si le host existe
 - name: Check if host exists
   uri:
     url: "{{ zabbix_url }}"
@@ -59,16 +60,35 @@
       jsonrpc: "2.0"
       method: "host.get"
       params:
-        output: ["hostid", "host"]
         filter:
-          host: ["{{ host_name }}"]
-      id: 3
+          host: "{{ host_name }}"
+      auth: "{{ zabbix_auth }}"
+      id: 1
     headers:
       Content-Type: "application/json"
-      Authorization: "Bearer {{ zabbix_auth }}"
   register: host_check
 
-# 4️⃣ Créer ou mettre à jour le host
+# 2️⃣ Préparer le payload
+- name: Prepare host payload
+  set_fact:
+    zabbix_host_payload: >-
+      {{
+        {
+          'host': host_name,
+          'interfaces': [{
+            'type': 1,
+            'main': 1,
+            'useip': 1,
+            'ip': host_ip,
+            'dns': '',
+            'port': '10050'
+          }],
+          'groups': [{'groupid': zabbix_groupid}]
+        }
+        | combine({'hostid': host_check.json.result[0].hostid} if host_check.json.result | length > 0 else {})
+      }}
+
+# 3️⃣ Créer ou mettre à jour le host
 - name: Create or update host in Zabbix
   uri:
     url: "{{ zabbix_url }}"
@@ -83,3 +103,7 @@
     headers:
       Content-Type: "application/json"
   register: zabbix_host_result
+
+- name: Debug host creation/update response
+  debug:
+    var: zabbix_host_result.json
