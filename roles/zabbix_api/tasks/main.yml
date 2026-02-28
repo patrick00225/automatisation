@@ -77,30 +77,9 @@
     body:
       jsonrpc: "2.0"
       method: "{{ 'host.update' if host_check.json.result | length > 0 else 'host.create' }}"
-      params: >-
-        {{
-          {
-            'host': host_name,
-            'interfaces': [{
-              'type': 1,
-              'main': 1,
-              'useip': 1,
-              'ip': host_ip,
-              'dns': '',
-              'port': '10050'
-            }],
-            'groups': [{'groupid': zabbix_groupid}],
-            **({'hostid': host_check.json.result[0].hostid} if host_check.json.result | length > 0 else {})
-          }
-        }}
-      id: 4
+      params: "{{ zabbix_host_payload }}"
+      auth: "{{ zabbix_auth }}"
+      id: 1
     headers:
       Content-Type: "application/json"
-      Authorization: "Bearer {{ zabbix_auth }}"
-  register: zabbix_create_or_update
-  failed_when: zabbix_create_or_update.json.error is defined
-
-# 5️⃣ Debug final
-- name: Debug host creation/update response
-  debug:
-    var: zabbix_create_or_update.json
+  register: zabbix_host_result
