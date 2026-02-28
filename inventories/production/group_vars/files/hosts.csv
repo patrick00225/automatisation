@@ -1,0 +1,4 @@
+host_name,host_ip,zabbix_group_name
+web01,192.168.1.101,Linux servers
+web02,192.168.1.102,Linux servers
+
