@@ -55,19 +55,12 @@
             dns: ""
             port: "10050"
         groups:
-          - groupid: "{{ zabbix_groupid | default('2') }}"  # modifie ici si nécessaire
-      auth: "{{ zabbix_auth }}"
+          - groupid: "{{ zabbix_groupid }}"
       id: 1
     headers:
       Content-Type: "application/json"
+      Authorization: "Bearer {{ zabbix_auth }}"
   register: zabbix_create_host
   failed_when: zabbix_create_host.json.error is defined
 
-- name: Debug host creation response
-  debug:
-    var: zabbix_create_host.json
 
-- name: Fail if host creation failed
-  fail:
-    msg: "Zabbix host creation failed: {{ zabbix_create_host.json }}"
-  when: zabbix_create_host.json.error is defined
