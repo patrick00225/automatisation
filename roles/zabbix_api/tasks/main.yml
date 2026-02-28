@@ -1,9 +1,5 @@
 ---
-# roles/zabbix_api/tasks/main.yml
-
-# --------------------------
-# 1️⃣ Authentification Zabbix
-# --------------------------
+# 1️⃣ Authentification
 - name: Authenticate to Zabbix API
   uri:
     url: "{{ zabbix_url }}"
@@ -21,46 +17,90 @@
   register: login_response
   failed_when: login_response.status != 200
 
-- name: Debug login response
-  debug:
-    var: login_response.json
-
-- name: Fail if login failed
-  fail:
-    msg: "Zabbix login failed: {{ login_response.json }}"
-  when: login_response.json.result is not defined
-
 - name: Set auth token
   set_fact:
     zabbix_auth: "{{ login_response.json.result }}"
 
-# --------------------------
-# 2️⃣ Création du host
-# --------------------------
-- name: Create host in Zabbix
+# 2️⃣ Récupérer l'ID du groupe à partir du nom
+- name: Get groupid from group name
   uri:
     url: "{{ zabbix_url }}"
     method: POST
     body_format: json
     body:
       jsonrpc: "2.0"
-      method: "host.create"
+      method: "hostgroup.get"
       params:
-        host: "test-host"
-        interfaces:
-          - type: 1
-            main: 1
-            useip: 1
-            ip: "192.168.1.100"
-            dns: ""
-            port: "10050"
-        groups:
-          - groupid: "{{ zabbix_groupid }}"
-      id: 1
+        output: "extend"
+        filter:
+          name: ["{{ zabbix_group_name }}"]
+      id: 2
     headers:
       Content-Type: "application/json"
       Authorization: "Bearer {{ zabbix_auth }}"
-  register: zabbix_create_host
-  failed_when: zabbix_create_host.json.error is defined
+  register: zabbix_group
 
+- name: Fail if group not found
+  fail:
+    msg: "Zabbix group '{{ zabbix_group_name }}' not found"
+  when: zabbix_group.json.result | length == 0
 
+- name: Set groupid fact
+  set_fact:
+    zabbix_groupid: "{{ zabbix_group.json.result[0].groupid }}"
+
+# 3️⃣ Vérifier si le host existe déjà
+- name: Check if host exists
+  uri:
+    url: "{{ zabbix_url }}"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.get"
+      params:
+        output: ["hostid", "host"]
+        filter:
+          host: ["{{ host_name }}"]
+      id: 3
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ zabbix_auth }}"
+  register: host_check
+
+# 4️⃣ Créer ou mettre à jour le host
+- name: Create or update host in Zabbix
+  uri:
+    url: "{{ zabbix_url }}"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "{{ 'host.update' if host_check.json.result | length > 0 else 'host.create' }}"
+      params: >-
+        {{
+          {
+            'host': host_name,
+            'interfaces': [{
+              'type': 1,
+              'main': 1,
+              'useip': 1,
+              'ip': host_ip,
+              'dns': '',
+              'port': '10050'
+            }],
+            'groups': [{'groupid': zabbix_groupid}],
+            **({'hostid': host_check.json.result[0].hostid} if host_check.json.result | length > 0 else {})
+          }
+        }}
+      id: 4
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ zabbix_auth }}"
+  register: zabbix_create_or_update
+  failed_when: zabbix_create_or_update.json.error is defined
+
+# 5️⃣ Debug final
+- name: Debug host creation/update response
+  debug:
+    var: zabbix_create_or_update.json
