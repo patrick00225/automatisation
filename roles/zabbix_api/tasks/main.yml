@@ -1,6 +1,5 @@
 ---
 # 1️⃣ Authentification
-# 1️⃣ Authentification
 - name: Authenticate to Zabbix API
   uri:
     url: "{{ zabbix_url }}"
@@ -22,7 +21,7 @@
   set_fact:
     zabbix_auth: "{{ login_response.json.result }}"
 
-# 2️⃣ Récupérer l'ID du groupe par nom
+# 2️⃣ Récupérer l'ID du groupe à partir du nom
 - name: Get groupid from group name
   uri:
     url: "{{ zabbix_url }}"
@@ -34,7 +33,7 @@
       params:
         output: "extend"
         filter:
-          name: ["{{ csv_host.zabbix_group_name }}"]
+          name: ["{{ zabbix_group_name }}"]
       id: 2
     headers:
       Content-Type: "application/json"
@@ -43,43 +42,14 @@
 
 - name: Fail if group not found
   fail:
-    msg: "Zabbix group '{{ csv_host.zabbix_group_name }}' not found"
+    msg: "Zabbix group '{{ zabbix_group_name }}' not found"
   when: zabbix_group.json.result | length == 0
 
 - name: Set groupid fact
   set_fact:
     zabbix_groupid: "{{ zabbix_group.json.result[0].groupid }}"
 
-# 3️⃣ Vérifier si le host existe déjà par nom ou IP
-- name: Check if host with same name exists
-  uri:
-    url: "{{ zabbix_url }}"
-    method: POST
-    body_format: json
-    body:
-      jsonrpc: "2.0"
-      method: "host.get"
-      params:
-        output: ["hostid", "host"]
-        selectInterfaces: ["interfaceid","ip"]
-      id: 3
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer {{ zabbix_auth }}"
-  register: host_check
-
-# 4️⃣ Fail si le host existe déjà
-- name: Fail if host name or IP already exists
-  fail:
-    msg: >-
-      Host "{{ csv_host.host_name }}" ou IP "{{ csv_host.host_ip }}" 
-      existe déjà dans Zabbix.
-  when: host_check.json.result | selectattr('host','equalto', csv_host.host_name) | list | length > 0
-        or
-        host_check.json.result | selectattr('interfaces','defined') 
-        | selectattr('interfaces','selectattr','ip','equalto', csv_host.host_ip) | list | length > 0
-
-# 5️⃣ Créer le host (si pas existant)
+# 3️⃣ Création du host
 - name: Create host in Zabbix
   uri:
     url: "{{ zabbix_url }}"
@@ -89,17 +59,17 @@
       jsonrpc: "2.0"
       method: "host.create"
       params:
-        host: "{{ csv_host.host_name }}"
+        host: "{{ host_name }}"
         interfaces:
           - type: 1
             main: 1
             useip: 1
-            ip: "{{ csv_host.host_ip }}"
+            ip: "{{ host_ip }}"
             dns: ""
             port: "10050"
         groups:
           - groupid: "{{ zabbix_groupid }}"
-      id: 4
+      id: 3
     headers:
       Content-Type: "application/json"
       Authorization: "Bearer {{ zabbix_auth }}"
@@ -108,4 +78,4 @@
 
 - name: Debug host creation response
   debug:
-    var: zabbix_create_host.json
+    var: zabbix_create_host.js
