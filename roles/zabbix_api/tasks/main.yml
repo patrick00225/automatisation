@@ -49,61 +49,33 @@
   set_fact:
     zabbix_groupid: "{{ zabbix_group.json.result[0].groupid }}"
 
-# 3️⃣ Vérifier si le host existe déjà
-# 1️⃣ Vérifier si le host existe
-- name: Check if host exists
+# 3️⃣ Création du host
+- name: Create host in Zabbix
   uri:
     url: "{{ zabbix_url }}"
     method: POST
     body_format: json
     body:
       jsonrpc: "2.0"
-      method: "host.get"
+      method: "host.create"
       params:
-        filter:
-          host: "{{ host_name }}"
-      auth: "{{ zabbix_auth }}"
-      id: 1
+        host: "{{ host_name }}"
+        interfaces:
+          - type: 1
+            main: 1
+            useip: 1
+            ip: "{{ host_ip }}"
+            dns: ""
+            port: "10050"
+        groups:
+          - groupid: "{{ zabbix_groupid }}"
+      id: 3
     headers:
       Content-Type: "application/json"
-  register: host_check
+      Authorization: "Bearer {{ zabbix_auth }}"
+  register: zabbix_create_host
+  failed_when: zabbix_create_host.json.error is defined
 
-# 2️⃣ Préparer le payload
-- name: Prepare host payload
-  set_fact:
-    zabbix_host_payload: >-
-      {{
-        {
-          'host': host_name,
-          'interfaces': [{
-            'type': 1,
-            'main': 1,
-            'useip': 1,
-            'ip': host_ip,
-            'dns': '',
-            'port': '10050'
-          }],
-          'groups': [{'groupid': zabbix_groupid}]
-        }
-        | combine({'hostid': host_check.json.result[0].hostid} if host_check.json.result | length > 0 else {})
-      }}
-
-# 3️⃣ Créer ou mettre à jour le host
-- name: Create or update host in Zabbix
-  uri:
-    url: "{{ zabbix_url }}"
-    method: POST
-    body_format: json
-    body:
-      jsonrpc: "2.0"
-      method: "{{ 'host.update' if host_check.json.result | length > 0 else 'host.create' }}"
-      params: "{{ zabbix_host_payload }}"
-      auth: "{{ zabbix_auth }}"
-      id: 1
-    headers:
-      Content-Type: "application/json"
-  register: zabbix_host_result
-
-- name: Debug host creation/update response
+- name: Debug host creation response
   debug:
-    var: zabbix_host_result.json
+    var: zabbix_create_host.json
