@@ -1,6 +1,5 @@
 ---
 # roles/zabbix_api/tasks/main.yml
----
 
 # --------------------------
 # 1️⃣ Authentification Zabbix
