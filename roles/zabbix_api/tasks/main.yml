@@ -1,5 +1,10 @@
 ---
-# Connection
+# roles/zabbix_api/tasks/main.yml
+---
+
+# --------------------------
+# 1️⃣ Authentification Zabbix
+# --------------------------
 - name: Authenticate to Zabbix API
   uri:
     url: "{{ zabbix_url }}"
@@ -15,12 +20,24 @@
     headers:
       Content-Type: "application/json"
   register: login_response
+  failed_when: login_response.status != 200
 
-- set_fact:
+- name: Debug login response
+  debug:
+    var: login_response.json
+
+- name: Fail if login failed
+  fail:
+    msg: "Zabbix login failed: {{ login_response.json }}"
+  when: login_response.json.result is not defined
+
+- name: Set auth token
+  set_fact:
     zabbix_auth: "{{ login_response.json.result }}"
 
-# AJOUT HOST
-
+# --------------------------
+# 2️⃣ Création du host
+# --------------------------
 - name: Create host in Zabbix
   uri:
     url: "{{ zabbix_url }}"
@@ -39,9 +56,19 @@
             dns: ""
             port: "10050"
         groups:
-          - groupid: "2"
+          - groupid: "{{ zabbix_groupid | default('2') }}"  # modifie ici si nécessaire
       auth: "{{ zabbix_auth }}"
       id: 1
     headers:
       Content-Type: "application/json"
   register: zabbix_create_host
+  failed_when: zabbix_create_host.json.error is defined
+
+- name: Debug host creation response
+  debug:
+    var: zabbix_create_host.json
+
+- name: Fail if host creation failed
+  fail:
+    msg: "Zabbix host creation failed: {{ zabbix_create_host.json }}"
+  when: zabbix_create_host.json.error is defined
