@@ -1,0 +1,7 @@
+---
+- name: Install & Join AD via SSSD
+  hosts: ubuntu_servers
+  become: yes
+
+  roles:
+    - sssd_ad

@@ -1,0 +1,49 @@
+- name: Installer les paquets SSSD + AD
+  apt:
+    name:
+      - realmd
+      - sssd
+      - sssd-tools
+      - libnss-sss
+      - libpam-sss
+      - adcli
+      - samba-common-bin
+      - oddjob
+      - oddjob-mkhomedir
+      - packagekit
+    state: present
+    update_cache: yes
+
+- name: Vérifier si déjà joint au domaine
+  command: realm list
+  register: realm_list
+  changed_when: false
+
+- name: Joindre le domaine AD
+  expect:
+    command: >
+      realm join {{ domain_name }}
+      -U {{ domain_user }}
+    responses:
+      Password.*: "{{ domain_password }}"
+  when: domain_name not in realm_list.stdout
+
+- name: Déployer config SSSD
+  template:
+    src: sssd.conf.j2
+    dest: /etc/sssd/sssd.conf
+    owner: root
+    group: root
+    mode: '0600'
+  notify: restart sssd
+
+- name: Activer mkhomedir
+  command: pam-auth-update --enable mkhomedir
+  args:
+    creates: /etc/pam.d/common-session
+
+- name: Démarrer SSSD
+  service:
+    name: sssd
+    state: started
+    enabled: yes
